@@ -3,13 +3,13 @@
   "id": "roadlights",
   "version": "${version}",
   "name": "Roadlights",
-  "description": "",
+  "description": "May our lights shine and shield you from the endless, dangerous complex.",
   "authors": [
     "Type-32"
   ],
   "contact": {},
   "license": "All-Rights-Reserved",
-  "icon": "assets/roadlights/icon.jpg",
+  "icon": "assets/roadlights/icon.png",
   "environment": "client",
   "entrypoints": {
     "client": [

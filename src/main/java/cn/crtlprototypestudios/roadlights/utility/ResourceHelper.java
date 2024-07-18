@@ -7,6 +7,7 @@ import java.util.List;
 
 public class ResourceHelper {
     public static String MODID = "roadlights";
+    public static String CONFIG_FILE = "roadlights.config.json";
     private static List<Identifier> identifiers = new ArrayList<Identifier>();
 
     public static Identifier find(String path) {

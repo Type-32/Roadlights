@@ -2,6 +2,13 @@ package cn.crtlprototypestudios.roadlights.client.utility;
 
 import cn.crtlprototypestudios.roadlights.client.config.RoadlightsConfig;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.InventoryProvider;
+import net.minecraft.block.MapColor;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.client.world.ClientWorld;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.inventory.Inventory;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
@@ -15,15 +22,27 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ContainerCache {
+    public int
+            cacheRadius = 5, // Cache a 5x5 chunk area
+            containerScanRadius = 64; // Scans a 64x64 block area with the player as the center
+
     private final Map<ChunkPos, List<BlockPos>> containers = new ConcurrentHashMap<>();
     private final List<ChunkPos> scannedChunks = new ArrayList<>();
-    private static final int CACHE_RADIUS = 5; // Cache a 11x11 chunk area
+
+    public ContainerCache(int cacheRadius, int containerScanRadius){
+        this.cacheRadius = cacheRadius;
+        this.containerScanRadius = containerScanRadius;
+    }
+
+    public ContainerCache(){
+        this(5, 64);
+    }
 
     public void update(World world, int centerChunkX, int centerChunkZ) {
         List<ChunkPos> currentChunks = new ArrayList<>();
 
-        for (int x = centerChunkX - CACHE_RADIUS; x <= centerChunkX + CACHE_RADIUS; x++) {
-            for (int z = centerChunkZ - CACHE_RADIUS; z <= centerChunkZ + CACHE_RADIUS; z++) {
+        for (int x = centerChunkX - cacheRadius; x <= centerChunkX + cacheRadius; x++) {
+            for (int z = centerChunkZ - cacheRadius; z <= centerChunkZ + cacheRadius; z++) {
                 ChunkPos pos = new ChunkPos(x, z);
                 currentChunks.add(pos);
 
@@ -93,5 +112,82 @@ public class ContainerCache {
 
     public Map<ChunkPos, List<BlockPos>> getContainers() {
         return containers;
+    }
+
+    public boolean isContainerEmpty(World world, BlockPos pos) {
+        BlockEntity blockEntity = world.getBlockEntity(pos);
+        if (blockEntity instanceof InventoryProvider) {
+            InventoryProvider invProvider = (InventoryProvider) blockEntity;
+            Inventory inv = invProvider.getInventory(blockEntity.getCachedState(), world, pos);
+            for (int i = 0; i < inv.size(); i++) {
+                if (!inv.getStack(i).isEmpty()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    public void updateNearbyChunks(World world, PlayerEntity player) {
+        int playerChunkX = (int)player.getX() >> 4;
+        int playerChunkZ = (int)player.getZ() >> 4;
+
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                ChunkPos chunkPos = new ChunkPos(playerChunkX + dx, playerChunkZ + dz);
+                refreshChunk(world, chunkPos);
+            }
+        }
+        System.out.println("Updated Nearby Chunks.");
+    }
+
+    public int getContainerColor(BlockState state) {
+        if(ContainerCache.isContainer(state)){
+            return 0xFF00FFFF;
+        } else {
+            return MapColor.getRenderColor(state.getBlock().getDefaultMapColor().color);
+        }
+    }
+
+
+//    private List<BlockPos> scanForContainers(ClientWorld world, int centerX, int centerZ) {
+//        List<BlockPos> containers = new ArrayList<>();
+//
+//        int chunkRadius = (CONTAINER_SCAN_RADIUS >> 4) + 1;
+//        ChunkPos centerChunk = new ChunkPos(new BlockPos(centerX, 0, centerZ));
+//
+//        for (int chunkX = centerChunk.x - chunkRadius; chunkX <= centerChunk.x + chunkRadius; chunkX++) {
+//            for (int chunkZ = centerChunk.z - chunkRadius; chunkZ <= centerChunk.z + chunkRadius; chunkZ++) {
+//                if (world.getChunkManager().isChunkLoaded(chunkX, chunkZ)) {
+//                    scanChunkForContainers(world, chunkX, chunkZ, centerX, centerZ, containers);
+//                }
+//            }
+//        }
+//
+//        return containers;
+//    }
+
+    public void scanChunkForContainers(ClientWorld world, int chunkX, int chunkZ, int centerX, int centerZ, List<BlockPos> containers) {
+        int startX = chunkX << 4;
+        int startZ = chunkZ << 4;
+
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                int worldX = startX + x;
+                int worldZ = startZ + z;
+
+                if (Math.abs(worldX - centerX) <= containerScanRadius && Math.abs(worldZ - centerZ) <= containerScanRadius) {
+                    for (int y = world.getBottomY(); y < world.getTopY(); y++) {
+                        BlockPos pos = new BlockPos(worldX, y, worldZ);
+                        BlockState state = world.getBlockState(pos);
+                        if (state.getBlock() == Blocks.CHEST || state.getBlock() == Blocks.TRAPPED_CHEST ||
+                                state.getBlock() == Blocks.BARREL) {
+                            containers.add(pos);
+                        }
+                    }
+                }
+            }
+        }
     }
 }
