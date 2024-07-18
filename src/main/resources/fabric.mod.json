@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "roadlights",
+  "version": "${version}",
+  "name": "Roadlights",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/roadlights/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "cn.crtlprototypestudios.roadlights.client.RoadlightsClient"
+    ],
+    "main": [
+      "cn.crtlprototypestudios.roadlights.Roadlights"
+    ]
+  },
+  "mixins": [
+    "roadlights.mixins.json",
+    {
+      "config": "roadlights.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
