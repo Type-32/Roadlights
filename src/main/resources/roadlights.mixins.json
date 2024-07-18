@@ -6,7 +6,8 @@
   "mixins": [
   ],
   "client": [
-    "cn.crtlprototypestudios.roadlights.client.mixin.ClientModListMixin"
+    "cn.crtlprototypestudios.roadlights.client.mixin.ClientModListMixin",
+    "cn.crtlprototypestudios.roadlights.client.mixin.ClientModListMixinImpl"
   ],
   "injectors": {
     "defaultRequire": 1

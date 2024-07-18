@@ -1,9 +1,12 @@
 package cn.crtlprototypestudios.roadlights;
 
+import cn.crtlprototypestudios.roadlights.config.data.ModsFilterList;
+import cn.crtlprototypestudios.roadlights.config.utility.JsonConfigStorage;
 import cn.crtlprototypestudios.roadlights.utility.ResourceHelper;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
+import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
 import org.apache.commons.io.monitor.FileAlterationListener;
 import org.apache.commons.io.monitor.FileAlterationMonitor;
 import org.apache.commons.io.monitor.FileAlterationObserver;
@@ -15,7 +18,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Roadlights implements ModInitializer {
+public class Roadlights implements ModInitializer, PreLaunchEntrypoint {
     public static final Logger LOGGER = LoggerFactory.getLogger(ResourceHelper.MODID);
     private static List<String> blacklistedMods = new ArrayList<>();
 
@@ -26,8 +29,9 @@ public class Roadlights implements ModInitializer {
 
     private void loadBlacklist() {
         // Load your blacklisted mod IDs here
-        blacklistedMods.add("some_mod_id");
-        blacklistedMods.add("another_mod_id");
+        JsonConfigStorage configStorage = new JsonConfigStorage();
+        ModsFilterList li = configStorage.loadConfig(ModsFilterList.class, "filter_mods.json", false);
+        blacklistedMods = li.ids;
     }
 
     private void monitorFileOperations() {
@@ -96,5 +100,11 @@ public class Roadlights implements ModInitializer {
 
     public static Path getGameDir() {
         return FabricLoader.getInstance().getGameDir();
+    }
+
+    @Override
+    public void onPreLaunch() {
+        LOGGER.info("Pre-launching Roadlights");
+        loadBlacklist();
     }
 }
