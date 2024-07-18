@@ -104,22 +104,22 @@ public class RoadlightsMinimap {
     }
 
     public void renderPlayerArrow(DrawContext drawContext, PlayerEntity player, int mapX, int mapY, int mapSize) {
-        float yaw = -player.getYaw();
         int arrowSize = Math.max(4, mapSize / 16); // Scale arrow size with map size
 
         int centerX = mapX + mapSize / 2;
         int centerY = mapY + mapSize / 2;
+        float yaw = -player.getYaw();
+
+        // Convert yaw to radians
+        float angle = (float) Math.toRadians(yaw);
 
         // Calculate arrow points
         int[] xPoints = new int[3];
         int[] yPoints = new int[3];
 
-        // Convert yaw to radians and adjust for Minecraft's coordinate system
-        float angle = (float) Math.toRadians(yaw);
-
         // Tip of the arrow
         xPoints[0] = centerX + (int)(MathHelper.sin(angle) * arrowSize);
-        yPoints[0] = centerY - (int)(MathHelper.cos(angle) * arrowSize);
+        yPoints[0] = centerY + (int)(MathHelper.cos(angle) * arrowSize);
 
         // Base points of the arrow
         float baseAngle1 = angle + (float) Math.toRadians(140);
