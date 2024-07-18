@@ -1,0 +1,13 @@
+{
+  "roadlights.config.title": "Roadlights Minimap Configuration Screen.",
+
+  "roadlights.config.category.name": "Minimap",
+
+  "roadlights.config.group.general_config.name": "General Settings",
+
+  "roadlights.config.option.show_blocks.name": "Show Blocks With ID",
+  "roadlights.config.option.show_blocks.desc": "Show these blocks with the corresponding ID on the minimap",
+
+  "roadlights.config.option.map_size.name": "Minimap Relative Size",
+  "roadlights.config.option.map_size.desc": "The Minimap's relative size with the UI Scale."
+}

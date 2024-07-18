@@ -4,7 +4,8 @@
   "package": "cn.crtlprototypestudios.roadlights.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "ClientModListMixin"
+    "ClientModListMixin",
+    "WorldMixin"
   ],
   "client": [
   ],

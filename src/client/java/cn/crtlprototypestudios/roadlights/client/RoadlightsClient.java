@@ -1,12 +1,15 @@
 package cn.crtlprototypestudios.roadlights.client;
 
+import cn.crtlprototypestudios.roadlights.client.render.RenderDrawUtility;
+import cn.crtlprototypestudios.roadlights.client.utility.ContainerCache;
+import cn.crtlprototypestudios.roadlights.client.config.RoadlightsConfig;
+import cn.crtlprototypestudios.roadlights.event.WorldContainerBlockPlacementEvent;
+import com.terraformersmc.modmenu.api.ConfigScreenFactory;
+import com.terraformersmc.modmenu.api.ModMenuApi;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
+import net.minecraft.block.*;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -19,27 +22,27 @@ import net.minecraft.entity.passive.AnimalEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.registry.Registries;
-import net.minecraft.util.TypeFilter;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
-import net.minecraft.world.chunk.Chunk;
-import net.minecraft.world.chunk.ChunkStatus;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
-import static net.minecraft.client.session.telemetry.TelemetryEventProperty.RENDER_DISTANCE;
-
-public class RoadlightsClient implements ClientModInitializer {
+public class RoadlightsClient implements ClientModInitializer, ModMenuApi {
 
     private static final int MAP_SIZE = 128;
     private static final int TILE_SIZE = 2;
     private static final int RENDER_DISTANCE = 8 * 8; // 16 chunks
     private static final int CONTAINER_SCAN_RADIUS = 64; // Adjust as needed
     private ContainerCache containerCache;
+    private int tickCounter = 0;
+    private static final int UPDATE_INTERVAL = 20; // Update every 20 ticks (1 second)
+
+    private boolean doRefresh = false;
 
     private static final List<String> CONTAINER_TYPES = Arrays.asList(
             "minecraft:chest",
@@ -51,22 +54,52 @@ public class RoadlightsClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        RoadlightsConfig.HANDLER.load();
+//        RoadlightsConfig.
+
         System.out.println("Enhanced Minimap Mod initialized!");
         containerCache = new ContainerCache();
         HudRenderCallback.EVENT.register(this::renderMinimap);
 
         PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
-            if (world.isClient) {
-                containerCache.updateBlockAt(world, pos, world.getBlockState(pos));
-            }
+            containerCache.updateBlockAt(world, pos, world.getBlockState(pos));
         });
 
-//        ServerWorldEvents.register((world, pos, oldState, newState) -> {
+//        PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
+//            containerCache.updateBlockAt(world, pos, world.getBlockState(pos));
+//        });
+
+//        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
+//            if (world.isClient) {
+//                BlockPos pos = hitResult.getBlockPos().offset(hitResult.getSide());
+//                containerCache.refreshChunk(world, new ChunkPos(pos));
+//            }
+//            return ActionResult.PASS;
+//        });
+
+//        WorldEvents.BLOCK_BROKEN.register((world, pos, newState) -> {
 //            if (world.isClient) {
 //                containerCache.updateBlockAt(world, pos, newState);
 //            }
 //            return true;
 //        });
+
+        // Register custom event for block placement
+        WorldContainerBlockPlacementEvent.EVENT.register((world, pos, state) -> {
+            if (world.isClient) {
+                containerCache.updateBlockAt(world, pos, state);
+            }
+        });
+    }
+
+    @Override
+    public ConfigScreenFactory<?> getModConfigScreenFactory() {
+        return RoadlightsConfig::createConfigScreen;
+    }
+
+    @Override
+    public void attachModpackBadges(Consumer<String> consumer) {
+        ModMenuApi.super.attachModpackBadges(consumer);
     }
 
     private void renderMinimap(DrawContext drawContext, RenderTickCounter renderTickCounter) {
@@ -76,46 +109,56 @@ public class RoadlightsClient implements ClientModInitializer {
 
         if (player == null || world == null) return;
 
+        double uiScale = client.options.getGuiScale().getValue();
+        uiScale = uiScale <= 0 ? 1 : uiScale * 0.5;
+        int scaledMapSize = (int) (MAP_SIZE * uiScale);
+
         int screenWidth = client.getWindow().getScaledWidth();
         int screenHeight = client.getWindow().getScaledHeight();
         int mapX = 10;
-        int mapY = screenHeight - MAP_SIZE - 10;
+        int mapY = screenHeight - scaledMapSize - 10;
 
         // Draw minimap background
-        drawContext.fill(mapX, mapY, mapX + MAP_SIZE, mapY + MAP_SIZE, 0x80000000);
+        drawContext.fill(mapX, mapY, mapX + scaledMapSize, mapY + scaledMapSize, 0x80000000);
 
         // Render terrain
 //        renderTerrain(drawContext, world, player, mapX, mapY);
 
-        // Render entities
         renderEntities(drawContext, world, player, mapX, mapY);
 
-        containerCache.update(world, (int)player.getX() >> 4, (int)player.getZ() >> 4);
-        renderCachedContainers(drawContext, player, world, mapX, mapY);
+        CompletableFuture.runAsync(() -> {
+            containerCache.update(world, (int)player.getX() >> 4, (int)player.getZ() >> 4);
+        });
 
-        // Render player arrow
-        renderPlayerArrow(drawContext, player, mapX, mapY);
+        renderCachedContainers(drawContext, player, world, mapX, mapY, scaledMapSize);
+
+        renderPlayerArrow(drawContext, player, mapX, mapY, scaledMapSize);
 
         // Draw border
-        drawContext.drawBorder(mapX, mapY, MAP_SIZE, MAP_SIZE, 0xFFFFFFFF);
+        int borderWidth = (int) (1 * uiScale);
+        drawContext.fill(mapX, mapY, mapX + scaledMapSize, mapY + borderWidth, 0xFFFFFFFF); // Top
+        drawContext.fill(mapX, mapY + scaledMapSize - borderWidth, mapX + scaledMapSize, mapY + scaledMapSize, 0xFFFFFFFF); // Bottom
+        drawContext.fill(mapX, mapY, mapX + borderWidth, mapY + scaledMapSize, 0xFFFFFFFF); // Left
+        drawContext.fill(mapX + scaledMapSize - borderWidth, mapY, mapX + scaledMapSize, mapY + scaledMapSize, 0xFFFFFFFF); // Right
     }
 
-    private void renderPlayerArrow(DrawContext drawContext, PlayerEntity player, int mapX, int mapY) {
-        int arrowSize = TILE_SIZE * 3;
-        int centerX = mapX + MAP_SIZE / 2;
-        int centerY = mapY + MAP_SIZE / 2;
+    private void renderPlayerArrow(DrawContext drawContext, PlayerEntity player, int mapX, int mapY, int mapSize) {
         float yaw = -player.getYaw();
+        int arrowSize = Math.max(4, mapSize / 16); // Scale arrow size with map size
 
-        // Convert yaw to radians
-        float angle = (float) Math.toRadians(yaw);
+        int centerX = mapX + mapSize / 2;
+        int centerY = mapY + mapSize / 2;
 
         // Calculate arrow points
         int[] xPoints = new int[3];
         int[] yPoints = new int[3];
 
+        // Convert yaw to radians and adjust for Minecraft's coordinate system
+        float angle = (float) Math.toRadians(yaw);
+
         // Tip of the arrow
         xPoints[0] = centerX + (int)(MathHelper.sin(angle) * arrowSize);
-        yPoints[0] = centerY + (int)(MathHelper.cos(angle) * arrowSize);
+        yPoints[0] = centerY - (int)(MathHelper.cos(angle) * arrowSize);
 
         // Base points of the arrow
         float baseAngle1 = angle + (float) Math.toRadians(140);
@@ -128,68 +171,10 @@ public class RoadlightsClient implements ClientModInitializer {
         yPoints[2] = centerY + (int)(MathHelper.cos(baseAngle2) * arrowSize / 2);
 
         // Draw the arrow
-        drawArrow(drawContext, xPoints, yPoints, 0xFFFFFFFF);
+        RenderDrawUtility.drawTriangle(drawContext, xPoints, yPoints, 0xFFFFFFFF);
     }
 
-    private void drawArrow(DrawContext drawContext, int[] xPoints, int[] yPoints, int color) {
-        // Draw the outline of the arrow
-        drawLine(drawContext, xPoints[0], yPoints[0], xPoints[1], yPoints[1], color);
-        drawLine(drawContext, xPoints[1], yPoints[1], xPoints[2], yPoints[2], color);
-        drawLine(drawContext, xPoints[2], yPoints[2], xPoints[0], yPoints[0], color);
 
-        // Fill the arrow
-        fillTriangle(drawContext, xPoints, yPoints, color);
-    }
-
-    private void drawLine(DrawContext drawContext, int x1, int y1, int x2, int y2, int color) {
-        int dx = Math.abs(x2 - x1);
-        int dy = Math.abs(y2 - y1);
-
-        if (dx >= dy) {
-            // More horizontal
-            if (x1 > x2) {
-                int temp = x1; x1 = x2; x2 = temp;
-                temp = y1; y1 = y2; y2 = temp;
-            }
-            for (int x = x1; x <= x2; x++) {
-                int y = y1 + (x - x1) * (y2 - y1) / (x2 - x1);
-                drawContext.drawVerticalLine(x, y, y, color);
-            }
-        } else {
-            // More vertical
-            if (y1 > y2) {
-                int temp = x1; x1 = x2; x2 = temp;
-                temp = y1; y1 = y2; y2 = temp;
-            }
-            for (int y = y1; y <= y2; y++) {
-                int x = x1 + (y - y1) * (x2 - x1) / (y2 - y1);
-                drawContext.drawHorizontalLine(x, x, y, color);
-            }
-        }
-    }
-
-    private void fillTriangle(DrawContext drawContext, int[] xPoints, int[] yPoints, int color) {
-        int minY = Math.min(Math.min(yPoints[0], yPoints[1]), yPoints[2]);
-        int maxY = Math.max(Math.max(yPoints[0], yPoints[1]), yPoints[2]);
-
-        for (int y = minY; y <= maxY; y++) {
-            int x1 = Integer.MAX_VALUE;
-            int x2 = Integer.MIN_VALUE;
-
-            for (int i = 0; i < 3; i++) {
-                int j = (i + 1) % 3;
-                if ((yPoints[i] <= y && yPoints[j] > y) || (yPoints[j] <= y && yPoints[i] > y)) {
-                    int x = xPoints[i] + (y - yPoints[i]) * (xPoints[j] - xPoints[i]) / (yPoints[j] - yPoints[i]);
-                    x1 = Math.min(x1, x);
-                    x2 = Math.max(x2, x);
-                }
-            }
-
-            if (x1 <= x2) {
-                drawContext.drawHorizontalLine(x1, x2, y, color);
-            }
-        }
-    }
 
     private void renderTerrain(DrawContext drawContext, ClientWorld world, PlayerEntity player, int mapX, int mapY) {
         int playerX = (int) player.getX();
@@ -231,7 +216,7 @@ public class RoadlightsClient implements ClientModInitializer {
         }
     }
 
-    private void renderCachedContainers(DrawContext drawContext, PlayerEntity player, World world, int mapX, int mapY) {
+    private void renderCachedContainers(DrawContext drawContext, PlayerEntity player, World world, int mapX, int mapY, int mapSize) {
         int playerX = (int) player.getX();
         int playerZ = (int) player.getZ();
 
@@ -241,14 +226,15 @@ public class RoadlightsClient implements ClientModInitializer {
                 int relativeZ = pos.getZ() - playerZ;
 
                 if (Math.abs(relativeX) <= CONTAINER_SCAN_RADIUS && Math.abs(relativeZ) <= CONTAINER_SCAN_RADIUS) {
-                    int miniMapX = mapX + MAP_SIZE / 2 + (relativeX * MAP_SIZE / (2 * CONTAINER_SCAN_RADIUS));
-                    int miniMapZ = mapY + MAP_SIZE / 2 + (relativeZ * MAP_SIZE / (2 * CONTAINER_SCAN_RADIUS));
+                    int miniMapX = mapX + mapSize / 2 + (relativeX * mapSize / (2 * CONTAINER_SCAN_RADIUS));
+                    int miniMapZ = mapY + mapSize / 2 + (relativeZ * mapSize / (2 * CONTAINER_SCAN_RADIUS));
 
                     BlockState state = world.getBlockState(pos);
-                    String blockId = Registries.BLOCK.getId(state.getBlock()).toString();
-                    int color = getContainerColor(blockId);
+                    int color = getContainerColor(state);
 
-                    drawContext.fill(miniMapX - 1, miniMapZ - 1, miniMapX + 2, miniMapZ + 2, color);
+                    int dotSize = Math.max(1, mapSize / 64); // Scale dot size with map size
+                    drawContext.fill(miniMapX - dotSize/2, miniMapZ - dotSize/2,
+                            miniMapX + dotSize/2 + 1, miniMapZ + dotSize/2 + 1, color);
                 }
             }
         }
@@ -256,31 +242,37 @@ public class RoadlightsClient implements ClientModInitializer {
 
     private boolean isContainerEmpty(World world, BlockPos pos) {
         BlockEntity blockEntity = world.getBlockEntity(pos);
-        if (blockEntity instanceof Inventory) {
-            Inventory inventory = (Inventory) blockEntity;
-            for (int i = 0; i < inventory.size(); i++) {
-                if (!inventory.getStack(i).isEmpty()) {
+        if (blockEntity instanceof InventoryProvider) {
+            InventoryProvider invProvider = (InventoryProvider) blockEntity;
+            Inventory inv = invProvider.getInventory(blockEntity.getCachedState(), world, pos);
+            for (int i = 0; i < inv.size(); i++) {
+                if (!inv.getStack(i).isEmpty()) {
                     return false;
                 }
             }
             return true;
         }
-        return false; // If it's not an inventory, we can't determine if it's empty
+        return false;
     }
 
-    private int getContainerColor(String blockId) {
-        switch (blockId) {
-            case "minecraft:chest":
-            case "minecraft:trapped_chest":
-                return 0xFFFFAA00; // Orange for chests
-            case "minecraft:barrel":
-                return 0xFF964B00; // Brown for barrels
-            case "minecraft:shulker_box":
-                return 0xFFFF00FF; // Magenta for shulker boxes
-            case "minecraft:ender_chest":
-                return 0xFF00FFFF; // Cyan for ender chests
-            default:
-                return 0xFFFFFFFF; // White for unknown containers
+    private void updateNearbyChunks(World world, PlayerEntity player) {
+        int playerChunkX = (int)player.getX() >> 4;
+        int playerChunkZ = (int)player.getZ() >> 4;
+
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                ChunkPos chunkPos = new ChunkPos(playerChunkX + dx, playerChunkZ + dz);
+                containerCache.refreshChunk(world, chunkPos);
+            }
+        }
+        System.out.println("Updated Nearby Chunks.");
+    }
+
+    private int getContainerColor(BlockState state) {
+        if(ContainerCache.isContainer(state)){
+            return 0xFF00FFFF;
+        } else {
+            return MapColor.getRenderColor(state.getBlock().getDefaultMapColor().color);
         }
     }
 
@@ -326,14 +318,14 @@ public class RoadlightsClient implements ClientModInitializer {
     }
 
     private int getMapColor(Block block) {
-        // This is a simplified version. You might want to use block.getDefaultMapColor() in a real implementation.
-        if (block == Blocks.WATER) return 0xFF0000FF;
-        if (block == Blocks.GRASS_BLOCK) return 0xFF00FF00;
-        if (block == Blocks.STONE) return 0xFF808080;
-        if (block == Blocks.SAND) return 0xFFFFFF00;
-        if (block == Blocks.OAK_LOG || block == Blocks.OAK_LEAVES) return 0xFF00FF00;
-        return 0xFF000000; // Default black for unknown blocks
-//        return block.getDefaultMapColor().color;
+//        // This is a simplified version. You might want to use block.getDefaultMapColor() in a real implementation.
+//        if (block == Blocks.WATER) return 0xFF0000FF;
+//        if (block == Blocks.GRASS_BLOCK) return 0xFF00FF00;
+//        if (block == Blocks.STONE) return 0xFF808080;
+//        if (block == Blocks.SAND) return 0xFFFFFF00;
+//        if (block == Blocks.OAK_LOG || block == Blocks.OAK_LEAVES) return 0xFF00FF00;
+//        return 0xFF000000; // Default black for unknown blocks
+        return MapColor.getRenderColor(block.getDefaultMapColor().color);
     }
 
     private int getEntityColor(Entity entity) {
@@ -347,85 +339,4 @@ public class RoadlightsClient implements ClientModInitializer {
         return 0;
     }
 
-    private static class ContainerCache {
-        private final Map<ChunkPos, List<BlockPos>> containers = new ConcurrentHashMap<>();
-        private final List<ChunkPos> scannedChunks = new ArrayList<>();
-        private static final int CACHE_RADIUS = 5; // Cache a 11x11 chunk area
-
-        public void update(World world, int centerChunkX, int centerChunkZ) {
-            List<ChunkPos> currentChunks = new ArrayList<>();
-
-            for (int x = centerChunkX - CACHE_RADIUS; x <= centerChunkX + CACHE_RADIUS; x++) {
-                for (int z = centerChunkZ - CACHE_RADIUS; z <= centerChunkZ + CACHE_RADIUS; z++) {
-                    ChunkPos pos = new ChunkPos(x, z);
-                    currentChunks.add(pos);
-
-                    if (!scannedChunks.contains(pos)) {
-                        scanChunk(world, pos);
-                        scannedChunks.add(pos);
-                    }
-                }
-            }
-
-            // Remove chunks that are no longer in range
-            scannedChunks.removeIf(pos -> !currentChunks.contains(pos));
-            containers.keySet().removeIf(pos -> !currentChunks.contains(pos));
-        }
-
-        private void scanChunk(World world, ChunkPos pos) {
-            Chunk chunk = world.getChunk(pos.x, pos.z, ChunkStatus.FULL, false);
-            if (chunk == null) return;
-
-            List<BlockPos> chunkContainers = new ArrayList<>();
-
-            for (int x = 0; x < 16; x++) {
-                for (int z = 0; z < 16; z++) {
-                    for (int y = world.getBottomY(); y < world.getTopY(); y++) {
-                        BlockPos blockPos = new BlockPos(pos.x * 16 + x, y, pos.z * 16 + z);
-                        BlockState state = chunk.getBlockState(blockPos);
-                        if (isContainer(state)) {
-                            chunkContainers.add(blockPos);
-                        }
-                    }
-                }
-            }
-
-            if (!chunkContainers.isEmpty()) {
-                containers.put(pos, chunkContainers);
-            }
-        }
-
-        public void updateBlockAt(World world, BlockPos pos, BlockState newState) {
-            ChunkPos chunkPos = new ChunkPos(pos);
-            List<BlockPos> chunkContainers = containers.get(chunkPos);
-
-            if (chunkContainers == null) {
-                if (isContainer(newState)) {
-                    chunkContainers = new ArrayList<>();
-                    chunkContainers.add(pos);
-                    containers.put(chunkPos, chunkContainers);
-                }
-            } else {
-                if (isContainer(newState)) {
-                    if (!chunkContainers.contains(pos)) {
-                        chunkContainers.add(pos);
-                    }
-                } else {
-                    chunkContainers.remove(pos);
-                    if (chunkContainers.isEmpty()) {
-                        containers.remove(chunkPos);
-                    }
-                }
-            }
-        }
-
-        private boolean isContainer(BlockState state) {
-            String blockId = Registries.BLOCK.getId(state.getBlock()).toString();
-            return CONTAINER_TYPES.contains(blockId);
-        }
-
-        public Map<ChunkPos, List<BlockPos>> getContainers() {
-            return containers;
-        }
-    }
 }
