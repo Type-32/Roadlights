@@ -4,6 +4,7 @@ import cn.crtlprototypestudios.roadlights.config.data.ModsFilterList;
 import cn.crtlprototypestudios.roadlights.config.utility.JsonConfigStorage;
 import cn.crtlprototypestudios.roadlights.utility.ResourceHelper;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
@@ -16,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public class Roadlights implements ModInitializer, PreLaunchEntrypoint {
@@ -25,13 +27,26 @@ public class Roadlights implements ModInitializer, PreLaunchEntrypoint {
     @Override
     public void onInitialize() {
         LOGGER.info("Initializing Roadlights");
+
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> {
+            // Run the test after a short delay
+//            server.getWorlds().iterator().next().getServer().submit(this::outputModIds);
+        });
     }
 
-    private void loadBlacklist() {
+    private static void loadBlacklist() {
         // Load your blacklisted mod IDs here
         JsonConfigStorage configStorage = new JsonConfigStorage();
         ModsFilterList li = configStorage.loadConfig(ModsFilterList.class, "filter_mods.json", false);
         blacklistedMods = li.ids;
+    }
+
+    private void outputModIds() {
+        System.out.println("=== Filtered Mod List ===");
+        for (ModContainer mod : FabricLoader.getInstance().getAllMods()) {
+            System.out.println(mod.getMetadata().getId());
+        }
+        System.out.println("=========================");
     }
 
     private void monitorFileOperations() {
@@ -89,6 +104,7 @@ public class Roadlights implements ModInitializer, PreLaunchEntrypoint {
     }
 
     public static List<ModContainer> getFilteredModList() {
+        loadBlacklist();
         List<ModContainer> allMods = new ArrayList<>(FabricLoader.getInstance().getAllMods());
         allMods.forEach(modContainer -> {
             if (modContainer.getMetadata().getId().equals("roadlights") || blacklistedMods.contains(modContainer.getMetadata().getId())) {

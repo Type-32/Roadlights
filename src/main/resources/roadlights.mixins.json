@@ -4,10 +4,9 @@
   "package": "cn.crtlprototypestudios.roadlights.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "ClientModListMixin"
   ],
   "client": [
-    "cn.crtlprototypestudios.roadlights.client.mixin.ClientModListMixin",
-    "cn.crtlprototypestudios.roadlights.client.mixin.ClientModListMixinImpl"
   ],
   "injectors": {
     "defaultRequire": 1
