@@ -73,39 +73,41 @@ public class RoadlightsMinimap {
         PlayerEntity player = client.player;
         ClientWorld world = client.world;
 
-        if (player == null || world == null) return;
+        if (!client.options.hudHidden) {
+            if (player == null || world == null) return;
 
-        double uiScale = client.options.getGuiScale().getValue();
-        uiScale = uiScale <= 0 ? 1 : uiScale * 0.5;
-        int scaledMapSize = (int) (RoadlightsConfig.get().mapSize * uiScale);
+            double uiScale = client.options.getGuiScale().getValue();
+            uiScale = uiScale <= 0 ? 1 : uiScale * 0.5;
+            int scaledMapSize = (int) (RoadlightsConfig.get().mapSize * uiScale);
 
-        int screenWidth = client.getWindow().getScaledWidth();
-        int screenHeight = client.getWindow().getScaledHeight();
-        int mapX = 10;
-        int mapY = screenHeight - scaledMapSize - 10;
+            int screenWidth = client.getWindow().getScaledWidth();
+            int screenHeight = client.getWindow().getScaledHeight();
+            int mapX = 10;
+            int mapY = screenHeight - scaledMapSize - 10;
 
-        // Draw minimap background
-        drawContext.fill(mapX, mapY, mapX + scaledMapSize, mapY + scaledMapSize, 0x80000000);
+            // Draw minimap background
+            drawContext.fill(mapX, mapY, mapX + scaledMapSize, mapY + scaledMapSize, 0x80000000);
 
-        // Render terrain
+            // Render terrain
 //        renderTerrain(drawContext, world, player, mapX, mapY);
 
-        renderEntities(drawContext, world, player, mapX, mapY);
+            renderEntities(drawContext, world, player, mapX, mapY);
 
-        CompletableFuture.runAsync(() -> {
-            containerCache.update(world, (int)player.getX() >> 4, (int)player.getZ() >> 4);
-        });
+            CompletableFuture.runAsync(() -> {
+                containerCache.update(world, (int) player.getX() >> 4, (int) player.getZ() >> 4);
+            });
 
-        renderCachedContainers(drawContext, player, world, mapX, mapY, scaledMapSize);
+            renderCachedContainers(drawContext, player, world, mapX, mapY, scaledMapSize);
 
-        renderPlayerArrow(drawContext, player, mapX, mapY, scaledMapSize);
+            renderPlayerArrow(drawContext, player, mapX, mapY, scaledMapSize);
 
-        // Draw border
-        int borderWidth = (int) (1 * uiScale);
-        drawContext.fill(mapX, mapY, mapX + scaledMapSize, mapY + borderWidth, 0xFFFFFFFF); // Top
-        drawContext.fill(mapX, mapY + scaledMapSize - borderWidth, mapX + scaledMapSize, mapY + scaledMapSize, 0xFFFFFFFF); // Bottom
-        drawContext.fill(mapX, mapY, mapX + borderWidth, mapY + scaledMapSize, 0xFFFFFFFF); // Left
-        drawContext.fill(mapX + scaledMapSize - borderWidth, mapY, mapX + scaledMapSize, mapY + scaledMapSize, 0xFFFFFFFF); // Right
+            // Draw border
+            int borderWidth = (int) (1 * uiScale);
+            drawContext.fill(mapX, mapY, mapX + scaledMapSize, mapY + borderWidth, 0xFFFFFFFF); // Top
+            drawContext.fill(mapX, mapY + scaledMapSize - borderWidth, mapX + scaledMapSize, mapY + scaledMapSize, 0xFFFFFFFF); // Bottom
+            drawContext.fill(mapX, mapY, mapX + borderWidth, mapY + scaledMapSize, 0xFFFFFFFF); // Left
+            drawContext.fill(mapX + scaledMapSize - borderWidth, mapY, mapX + scaledMapSize, mapY + scaledMapSize, 0xFFFFFFFF); // Right
+        }
     }
 
     public void renderPlayerArrow(DrawContext drawContext, PlayerEntity player, int mapX, int mapY, int mapSize) {
