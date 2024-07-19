@@ -1,13 +1,19 @@
 {
   "roadlights.config.title": "引路光迷你地图设置界面",
 
-  "roadlights.config.category.name": "迷你地图设置",
+  "roadlights.config.category.minimap.name": "迷你地图设置",
 
   "roadlights.config.group.general_config.name": "基本",
+  "roadlights.config.category.alliance.name": "联盟",
 
   "roadlights.config.option.show_blocks.name": "显示有ID的方块",
   "roadlights.config.option.show_blocks.desc": "在迷你地图上显示有着以下ID的方块（青色）。",
 
+  "roadlights.config.option.allies.name": "盟友",
+  "roadlights.config.option.allies.desc": "会防止误伤盟友并且在迷你地图上显示为绿色",
+
   "roadlights.config.option.map_size.name": "迷你地图相对大小",
-  "roadlights.config.option.map_size.desc": "迷你地图相对UI缩放比例的大小。"
+  "roadlights.config.option.map_size.desc": "迷你地图相对UI缩放比例的大小。",
+
+  "roadlights.msg.alliance.no_hit_ally": "你和%s是盟友。"
 }

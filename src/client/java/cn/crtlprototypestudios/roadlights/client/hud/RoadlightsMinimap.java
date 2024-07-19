@@ -3,7 +3,7 @@ package cn.crtlprototypestudios.roadlights.client.hud;
 import cn.crtlprototypestudios.roadlights.client.config.RoadlightsConfig;
 import cn.crtlprototypestudios.roadlights.client.render.RenderDrawUtility;
 import cn.crtlprototypestudios.roadlights.client.utility.ContainerCache;
-import cn.crtlprototypestudios.roadlights.event.ConfigSaveEvent;
+import cn.crtlprototypestudios.roadlights.event.ConfigMinimapRefreshSaveEvent;
 import cn.crtlprototypestudios.roadlights.event.WorldContainerBlockPlacementEvent;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
@@ -11,11 +11,11 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.MapColor;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.passive.AnimalEntity;
@@ -33,6 +33,7 @@ import java.util.concurrent.CompletableFuture;
 public class RoadlightsMinimap {
 
     public ContainerCache containerCache;
+    private TextRenderer textRenderer;
     public int
             tileSize = 2,
             renderDistance = 8 * 8; // 8 chunks
@@ -56,7 +57,7 @@ public class RoadlightsMinimap {
                 containerCache.clearAndRefreshCache(client.world, client.player);
         });
 
-        ConfigSaveEvent.EVENT.register(() -> {
+        ConfigMinimapRefreshSaveEvent.EVENT.register(() -> {
             if(MinecraftClient.getInstance().player != null)
                 containerCache.clearAndRefreshCache(MinecraftClient.getInstance().world, MinecraftClient.getInstance().player);
         });
@@ -165,19 +166,75 @@ public class RoadlightsMinimap {
         }
     }
 
-    public void renderEntities(DrawContext drawContext, ClientWorld world, PlayerEntity player, int mapX, int mapY) {
-        List<LivingEntity> entities = world.getNonSpectatingEntities(LivingEntity.class, new Box(player.getPos().add(RoadlightsConfig.get().mapSize, 5, RoadlightsConfig.get().mapSize), player.getPos().add(-RoadlightsConfig.get().mapSize, -5, -RoadlightsConfig.get().mapSize)));
-        for (LivingEntity entity : entities) {
-//            if (entity.squaredDistanceTo(player) > renderDistance * renderDistance) continue;
-            int entityX = (int) ((entity.getX() - player.getX()) / tileSize + (double) RoadlightsConfig.get().mapSize / (2 * tileSize));
-            int entityZ = (int) ((entity.getZ() - player.getZ()) / tileSize + (double) RoadlightsConfig.get().mapSize / (2 * tileSize));
+    public void renderEntities(DrawContext drawContext, ClientWorld world, PlayerEntity currentPlayer, int mapX, int mapY) {
+        List<LivingEntity> entities = world.getNonSpectatingEntities(LivingEntity.class, new Box(currentPlayer.getPos().add(RoadlightsConfig.get().mapSize, 5, RoadlightsConfig.get().mapSize), currentPlayer.getPos().add(-RoadlightsConfig.get().mapSize, -5, -RoadlightsConfig.get().mapSize)));
 
-            if (entityX >= 0 && entityX < RoadlightsConfig.get().mapSize / tileSize && entityZ >= 0 && entityZ < RoadlightsConfig.get().mapSize / tileSize) {
-//                if(entity instanceof ItemEntity) return;
-                int color = getEntityColor(entity);
-                drawContext.fill(mapX + entityX * tileSize, mapY + entityZ * tileSize,
-                        mapX + (entityX + 1) * tileSize, mapY + (entityZ + 1) * tileSize, color);
+        for (LivingEntity entity : entities) {
+            if (entity.isPlayer()) {
+                renderPlayer(drawContext, entity, currentPlayer, mapX, mapY, false);
+            } else {
+                renderGenericEntity(drawContext, entity, currentPlayer, mapX, mapY);
             }
+        }
+
+        // Render spectating players
+//        for (PlayerEntity player : world.getPlayers()) {
+//            if (player.isSpectator()) {
+//                renderPlayer(drawContext, player, currentPlayer, mapX, mapY, true);
+//            }
+//        }
+    }
+
+    private void renderPlayer(DrawContext drawContext, LivingEntity player, PlayerEntity currentPlayer, int mapX, int mapY, boolean isSpectator) {
+        int entityX = (int) ((player.getX() - currentPlayer.getX()) / tileSize + (double) RoadlightsConfig.get().mapSize / (2 * tileSize));
+        int entityZ = (int) ((player.getZ() - currentPlayer.getZ()) / tileSize + (double) RoadlightsConfig.get().mapSize / (2 * tileSize));
+
+
+        if (entityX >= 0 && entityX < RoadlightsConfig.get().mapSize / tileSize && entityZ >= 0 && entityZ < RoadlightsConfig.get().mapSize / tileSize) {
+            int color = isSpectator ? 0x80FFFFFF : RoadlightsConfig.get().alliedPlayers.contains(player.getName().getString()) ? 0xFF00FF00 : 0xFFFFFFFF; // Semi-transparent for spectators
+            int dotSize = tileSize * 2; // Players get bigger dots
+            int dotCenterX = mapX + entityX * tileSize;
+            int dotCenterY = mapY + entityZ * tileSize;
+
+            // Render player name
+            if (!player.getName().getString().equals(currentPlayer.getName().getString())) {
+
+                drawContext.fill(mapX + entityX * tileSize - dotSize/2, mapY + entityZ * tileSize - dotSize/2,
+                        mapX + entityX * tileSize + dotSize/2, mapY + entityZ * tileSize + dotSize/2, color);
+
+                String health = String.format("%s/%s", (int)player.getHealth(), (int)player.getMaxHealth());
+                String name = String.format("%s (%s)", player.getName().getString(), health);
+                float scale = 0.5f; // Adjust this value to change text size (0.5 = half size)
+
+                int textWidth = (int)(MinecraftClient.getInstance().textRenderer.getWidth(name) * scale);
+                int textHeight = (int)(MinecraftClient.getInstance().textRenderer.fontHeight * scale); // Assuming default font height is 9
+
+                int textX = dotCenterX - textWidth / 2;
+                int textY = dotCenterY + dotSize/2 + 2; // 2 pixels gap between dot and text
+
+                drawContext.getMatrices().push();
+                drawContext.getMatrices().translate(textX, textY, 0);
+                drawContext.getMatrices().scale(scale, scale, 1.0f);
+
+                // Draw a semi-transparent background for better readability
+//                drawContext.fill(0, 0, (int)(textWidth/scale), (int)(textHeight/scale), 0x80000000);
+
+                // Draw the player name
+                drawContext.drawText(MinecraftClient.getInstance().textRenderer, name, 0, 0, color, false);
+
+                drawContext.getMatrices().pop();
+            }
+        }
+    }
+
+    private void renderGenericEntity(DrawContext drawContext, LivingEntity entity, PlayerEntity currentPlayer, int mapX, int mapY) {
+        int entityX = (int) ((entity.getX() - currentPlayer.getX()) / tileSize + (double) RoadlightsConfig.get().mapSize / (2 * tileSize));
+        int entityZ = (int) ((entity.getZ() - currentPlayer.getZ()) / tileSize + (double) RoadlightsConfig.get().mapSize / (2 * tileSize));
+
+        if (entityX >= 0 && entityX < RoadlightsConfig.get().mapSize / tileSize && entityZ >= 0 && entityZ < RoadlightsConfig.get().mapSize / tileSize) {
+            int color = getEntityColor(entity);
+            drawContext.fill(mapX + entityX * tileSize, mapY + entityZ * tileSize,
+                    mapX + entityX * tileSize + tileSize, mapY + entityZ * tileSize + tileSize, color);
         }
     }
 
@@ -186,6 +243,7 @@ public class RoadlightsMinimap {
         int playerZ = (int) player.getZ();
 
         for (Map.Entry<ChunkPos, List<BlockPos>> entry : containerCache.getContainers().entrySet()) {
+            if(entry == null) return;
             for (BlockPos pos : entry.getValue()) {
                 int relativeX = pos.getX() - playerX;
                 int relativeZ = pos.getZ() - playerZ;

@@ -1,13 +1,19 @@
 {
   "roadlights.config.title": "Roadlights Minimap Configuration Screen.",
 
-  "roadlights.config.category.name": "Minimap",
+  "roadlights.config.category.minimap.name": "Minimap",
+  "roadlights.config.category.alliance.name": "Alliance",
 
   "roadlights.config.group.general_config.name": "General Settings",
 
-  "roadlights.config.option.show_blocks.name": "Show Blocks With ID",
+  "roadlights.config.option.show_blocks.name": "Blocks Display Whitelist",
   "roadlights.config.option.show_blocks.desc": "Show these blocks with the corresponding ID on the minimap",
 
+  "roadlights.config.option.allies.name": "Allied Players",
+  "roadlights.config.option.allies.desc": "Shows the players with usernames listed below as friendly on minimap, and also stops you from hitting them.",
+
   "roadlights.config.option.map_size.name": "Minimap Relative Size",
-  "roadlights.config.option.map_size.desc": "The Minimap's relative size with the UI Scale."
+  "roadlights.config.option.map_size.desc": "The Minimap's relative size with the UI Scale.",
+
+  "roadlights.msg.alliance.no_hit_ally": "You are allied with %s."
 }
