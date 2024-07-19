@@ -3,6 +3,7 @@ package cn.crtlprototypestudios.roadlights.client.hud;
 import cn.crtlprototypestudios.roadlights.client.config.RoadlightsConfig;
 import cn.crtlprototypestudios.roadlights.client.render.RenderDrawUtility;
 import cn.crtlprototypestudios.roadlights.client.utility.ContainerCache;
+import cn.crtlprototypestudios.roadlights.event.ConfigSaveEvent;
 import cn.crtlprototypestudios.roadlights.event.WorldContainerBlockPlacementEvent;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
@@ -15,6 +16,7 @@ import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.passive.AnimalEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -39,10 +41,6 @@ public class RoadlightsMinimap {
         this(2, 8*8);
     }
 
-    public RoadlightsMinimap(int mapSize) {
-        this(2, 8*8);
-    }
-
     public RoadlightsMinimap(int tileSize, int renderDistance) {
         containerCache = new ContainerCache();
         this.tileSize = tileSize;
@@ -53,7 +51,14 @@ public class RoadlightsMinimap {
         });
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
-            containerCache.getContainers().clear();
+//            assert client.player != null;
+            if(client.player != null)
+                containerCache.clearAndRefreshCache(client.world, client.player);
+        });
+
+        ConfigSaveEvent.EVENT.register(() -> {
+            if(MinecraftClient.getInstance().player != null)
+                containerCache.clearAndRefreshCache(MinecraftClient.getInstance().world, MinecraftClient.getInstance().player);
         });
 
         WorldContainerBlockPlacementEvent.EVENT.register((world, pos, state) -> {
@@ -159,18 +164,17 @@ public class RoadlightsMinimap {
     }
 
     public void renderEntities(DrawContext drawContext, ClientWorld world, PlayerEntity player, int mapX, int mapY) {
-        List<Entity> entities = world.getNonSpectatingEntities(Entity.class, new Box(player.getX() + 100, player.getY() + 10, player.getZ() + 100, player.getX() - 100, player.getY() - 10, player.getZ() - 100));
-        for (Entity entity : entities) {
-            if (entity.squaredDistanceTo(player) <= renderDistance * renderDistance) {
-                int entityX = (int) ((entity.getX() - player.getX()) / tileSize + (double) RoadlightsConfig.get().mapSize / (2 * tileSize));
-                int entityZ = (int) ((entity.getZ() - player.getZ()) / tileSize + (double) RoadlightsConfig.get().mapSize / (2 * tileSize));
+        List<LivingEntity> entities = world.getNonSpectatingEntities(LivingEntity.class, new Box(player.getPos().add(RoadlightsConfig.get().mapSize, 5, RoadlightsConfig.get().mapSize), player.getPos().add(-RoadlightsConfig.get().mapSize, -5, -RoadlightsConfig.get().mapSize)));
+        for (LivingEntity entity : entities) {
+//            if (entity.squaredDistanceTo(player) > renderDistance * renderDistance) continue;
+            int entityX = (int) ((entity.getX() - player.getX()) / tileSize + (double) RoadlightsConfig.get().mapSize / (2 * tileSize));
+            int entityZ = (int) ((entity.getZ() - player.getZ()) / tileSize + (double) RoadlightsConfig.get().mapSize / (2 * tileSize));
 
-                if (entityX >= 0 && entityX < RoadlightsConfig.get().mapSize / tileSize && entityZ >= 0 && entityZ < RoadlightsConfig.get().mapSize / tileSize) {
-                    if(entity instanceof ItemEntity) return;
-                    int color = getEntityColor(entity);
-                    drawContext.fill(mapX + entityX * tileSize, mapY + entityZ * tileSize,
-                            mapX + (entityX + 1) * tileSize, mapY + (entityZ + 1) * tileSize, color);
-                }
+            if (entityX >= 0 && entityX < RoadlightsConfig.get().mapSize / tileSize && entityZ >= 0 && entityZ < RoadlightsConfig.get().mapSize / tileSize) {
+//                if(entity instanceof ItemEntity) return;
+                int color = getEntityColor(entity);
+                drawContext.fill(mapX + entityX * tileSize, mapY + entityZ * tileSize,
+                        mapX + (entityX + 1) * tileSize, mapY + (entityZ + 1) * tileSize, color);
             }
         }
     }

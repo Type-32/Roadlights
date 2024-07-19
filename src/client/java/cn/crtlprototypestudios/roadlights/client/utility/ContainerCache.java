@@ -69,7 +69,7 @@ public class ContainerCache {
                 for (int y = world.getBottomY(); y < world.getTopY(); y++) {
                     BlockPos blockPos = new BlockPos(pos.x * 16 + x, y, pos.z * 16 + z);
                     BlockState state = chunk.getBlockState(blockPos);
-                    if (isContainer(state)) {
+                    if (isConfiguredContainer(state)) {
                         chunkContainers.add(blockPos);
                     }
                 }
@@ -85,7 +85,7 @@ public class ContainerCache {
         ChunkPos chunkPos = new ChunkPos(pos);
         List<BlockPos> chunkContainers = containers.computeIfAbsent(chunkPos, k -> new ArrayList<>());
 
-        if (isContainer(newState)) {
+        if (isConfiguredContainer(newState)) {
             if (!chunkContainers.contains(pos)) {
                 chunkContainers.add(pos);
                 System.out.println("Added new container at " + pos);
@@ -105,7 +105,7 @@ public class ContainerCache {
         System.out.println("Refreshed chunk at " + pos);
     }
 
-    public static boolean isContainer(BlockState state) {
+    public static boolean isConfiguredContainer(BlockState state) {
         String blockId = Registries.BLOCK.getId(state.getBlock()).toString();
         return RoadlightsConfig.HANDLER.instance().showBlocksWithId.contains(blockId);
     }
@@ -143,8 +143,21 @@ public class ContainerCache {
     }
 
     public int getContainerColor(BlockState state) {
-        if(ContainerCache.isContainer(state)){
-            return 0xFF00FFFF;
+        if(ContainerCache.isConfiguredContainer(state)){
+            String blockId = Registries.BLOCK.getId(state.getBlock()).toString();
+            switch (blockId) {
+                case "minecraft:chest":
+                case "minecraft:trapped_chest":
+                    return 0xFFFFAA00; // Orange for chests
+                case "minecraft:barrel":
+                    return 0xFF964B00; // Brown for barrels
+                case "minecraft:shulker_box":
+                    return 0xFFFF00FF; // Magenta for shulker boxes
+                case "minecraft:ender_chest":
+                    return 0xFF00FFFF; // Cyan for ender chests
+                default:
+                    return 0xFFFFFFFF; // White for unknown containers
+            }
         } else {
             return MapColor.getRenderColor(state.getBlock().getDefaultMapColor().color);
         }
@@ -189,5 +202,26 @@ public class ContainerCache {
                 }
             }
         }
+    }
+
+    public void clearAndRefreshCache(World world, PlayerEntity player) {
+        // Clear existing cache
+        containers.clear();
+        scannedChunks.clear();
+
+        // Get player's current chunk
+        int playerChunkX = (int)player.getX() >> 4;
+        int playerChunkZ = (int)player.getZ() >> 4;
+
+        // Scan chunks in the cache radius
+        for (int x = playerChunkX - cacheRadius; x <= playerChunkX + cacheRadius; x++) {
+            for (int z = playerChunkZ - cacheRadius; z <= playerChunkZ + cacheRadius; z++) {
+                ChunkPos pos = new ChunkPos(x, z);
+                scanChunk(world, pos);
+                scannedChunks.add(pos);
+            }
+        }
+
+        System.out.println("Cache cleared and refreshed. Scanned " + scannedChunks.size() + " chunks.");
     }
 }

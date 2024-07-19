@@ -1,6 +1,7 @@
 package cn.crtlprototypestudios.roadlights.client.config;
 
 import cn.crtlprototypestudios.roadlights.client.config.utility.ConfigOptionsBuilder;
+import cn.crtlprototypestudios.roadlights.event.ConfigSaveEvent;
 import cn.crtlprototypestudios.roadlights.utility.ResourceHelper;
 import com.google.gson.GsonBuilder;
 import dev.isxander.yacl3.api.*;
@@ -32,11 +33,11 @@ public class RoadlightsConfig {
                     .build())
             .build();
 
-    @SerialEntry(comment = "Show the Blocks with the Identifiers on the minimap. e.g. 'minecraft:barrel'")
+    @SerialEntry
     public List<String> showBlocksWithId = new ArrayList<>();
 
-    @SerialEntry(comment = "The relative map size according to UI Scale.")
-//    @IntSlider(min = 64, max = 512, step = 64)
+    @SerialEntry
+    @IntSlider(min = 64, max = 512, step = 64)
     public int mapSize = 128;
 
     public static RoadlightsConfig get() {
@@ -54,7 +55,11 @@ public class RoadlightsConfig {
                                 Text.translatable("roadlights.config.option.show_blocks.desc"),
                                 HANDLER.instance().showBlocksWithId,
                                 () -> HANDLER.instance().showBlocksWithId,
-                                newVal -> HANDLER.instance().showBlocksWithId = newVal,
+                                newVal -> {
+                                    HANDLER.instance().showBlocksWithId = newVal;
+                                    HANDLER.save();
+                                    ConfigSaveEvent.EVENT.invoker().onCallback();
+                                },
                                 StringControllerBuilder::create,
                                 "minecraft:"))
                         .group(OptionGroup.createBuilder()
@@ -65,7 +70,11 @@ public class RoadlightsConfig {
                                         Text.translatable("roadlights.config.option.map_size.desc"),
                                         HANDLER.instance().mapSize,
                                         () -> Integer.valueOf(HANDLER.instance().mapSize),
-                                        newVal -> {HANDLER.instance().mapSize = newVal;},
+                                        newVal -> {
+                                            HANDLER.instance().mapSize = newVal;
+                                            HANDLER.save();
+                                            ConfigSaveEvent.EVENT.invoker().onCallback();
+                                        },
                                         opt -> IntegerSliderControllerBuilder.create(opt).range(64, 512).step(64)
                                 ))
                                 .build()

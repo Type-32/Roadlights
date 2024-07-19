@@ -2,10 +2,13 @@ package cn.crtlprototypestudios.roadlights.client;
 
 import cn.crtlprototypestudios.roadlights.client.hud.RoadlightsMinimap;
 import cn.crtlprototypestudios.roadlights.client.config.RoadlightsConfig;
+import cn.crtlprototypestudios.roadlights.event.WorldContainerBlockPlacementEvent;
 import com.terraformersmc.modmenu.api.ConfigScreenFactory;
 import com.terraformersmc.modmenu.api.ModMenuApi;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -27,7 +30,7 @@ public class RoadlightsClient implements ClientModInitializer, ModMenuApi {
     public void onInitializeClient() {
         RoadlightsConfig.HANDLER.load();
 
-        minimap = new RoadlightsMinimap(RoadlightsConfig.HANDLER.instance().mapSize);
+        minimap = new RoadlightsMinimap();
 
         System.out.println("Enhanced Minimap Mod initialized!");
 
